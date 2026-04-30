@@ -9,8 +9,7 @@ load_dotenv()
 
 from scrapers.weather import fetch_weather, fetch_aqi
 from scrapers.news import fetch_all_news
-from scrapers.utils import geocode_city, get_ip_location, reverse_geocode
-from scrapers.ai import summarize_news
+from scrapers.utils import geocode_city
 
 app = FastAPI(title="LiveDash API")
 
@@ -36,34 +35,9 @@ async def aqi(lat: float = 7.2096, lon: float = 79.8378):
 async def news(category: str = "all"):
     return await fetch_all_news(category)
 
-@app.get("/api/briefing")
-async def briefing():
-    news_data = await fetch_all_news("all")
-    all_articles = []
-    # news_data is a dict like {"world": {...}, "science": {...}}
-    for cat_data in news_data.values():
-        articles = cat_data.get("articles", [])
-        all_articles.extend(articles)
-    
-    if not all_articles:
-        return {"summary": "No news articles found to summarize."}
-        
-    summary = await summarize_news(all_articles)
-    return {"summary": summary}
-
 @app.get("/api/geocode")
 async def geocode(q: str):
     return await geocode_city(q)
-
-@app.get("/api/detect-location")
-async def detect_location():
-    loc = await get_ip_location()
-    return loc
-
-@app.get("/api/reverse-geocode")
-async def rev_geocode(lat: float, lon: float):
-    city = await reverse_geocode(lat, lon)
-    return {"city": city}
 
 @app.get("/api/all")
 async def all_data(lat: float = 7.2096, lon: float = 79.8378, city: str = "Negombo"):

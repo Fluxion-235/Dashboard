@@ -58,7 +58,6 @@ async def fetch_weather(lat: float, lon: float, city: str) -> dict:
         "uv_index": cur.get("uv_index", 0),
         "description": desc,
         "icon_type": icon_type,
-        "has_thunder": icon_type == "thunder",
         "forecast": forecast,
         "hourly_rain": data["hourly"]["precipitation_probability"][:24],
         "hourly_temp": data["hourly"]["temperature_2m"][:24],
