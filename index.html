@@ -303,6 +303,17 @@ a:hover { color: #fff; }
 <!-- ── Main ── -->
 <div id="main">
 
+  <!-- AI Daily Briefing -->
+  <div id="briefing-card" class="card" style="margin-bottom:20px; border-left: 4px solid var(--purple); background: linear-gradient(90deg, var(--bg2) 0%, rgba(167, 139, 250, 0.05) 100%);">
+    <div class="card-title" style="color:var(--purple)">
+      <span style="font-size:14px">✨</span> AI Daily Briefing
+    </div>
+    <div id="briefing-content" style="font-size:15px; line-height:1.6; color:var(--text)">
+      <div class="shimmer" style="height:18px; width:100%; margin-bottom:8px"></div>
+      <div class="shimmer" style="height:18px; width:90%"></div>
+    </div>
+  </div>
+
   <!-- Thunder alert -->
   <div id="thunder-alert" class="hidden">
     <span style="font-size:18px">⚡</span>
@@ -408,7 +419,7 @@ a:hover { color: #fff; }
 </div>
 
 <script>
-const API = 'http://localhost:8000';
+const API = window.location.origin;
 let newsData = {}, rainInst = null, tempInst = null;
 let worldClockTimer = null;
 
@@ -772,14 +783,24 @@ async function loadAll() {
   const btn = document.getElementById('refbtn');
   btn.classList.add('spin');
   setStatus('Refreshing…', false);
+  
+  // Reset briefing shimmer
+  document.getElementById('briefing-content').innerHTML = `
+    <div class="shimmer" style="height:18px; width:100%; margin-bottom:8px"></div>
+    <div class="shimmer" style="height:18px; width:90%"></div>
+  `;
+
   const t0 = Date.now();
   try {
     const lat = getLat(), lon = getLon(), city = encodeURIComponent(getCity());
+    
+    // Fetch basic data first
     const [wRes, nRes, aqiRes] = await Promise.all([
       fetch(`${API}/api/weather?lat=${lat}&lon=${lon}&city=${city}`),
       fetch(`${API}/api/news`),
       fetch(`${API}/api/aqi?lat=${lat}&lon=${lon}`),
     ]);
+    
     const wData = await wRes.json();
     newsData = await nRes.json();
     const aqiData = aqiRes.ok ? await aqiRes.json() : null;
@@ -789,6 +810,16 @@ async function loadAll() {
     updateBadges();
     renderNews('all');
     renderTicker();
+
+    // Fetch AI Briefing separately as it might take longer
+    fetch(`${API}/api/briefing`)
+      .then(r => r.json())
+      .then(d => {
+        document.getElementById('briefing-content').textContent = d.summary || 'No briefing available.';
+      })
+      .catch(e => {
+        document.getElementById('briefing-content').textContent = 'Could not load AI briefing.';
+      });
 
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     setStatus(`Updated ${new Date().toLocaleTimeString()} · ${elapsed}s`, true);

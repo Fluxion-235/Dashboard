@@ -3,9 +3,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from scrapers.weather import fetch_weather, fetch_aqi
 from scrapers.news import fetch_all_news
 from scrapers.utils import geocode_city, get_ip_location, reverse_geocode
+from scrapers.ai import summarize_news
 
 app = FastAPI(title="LiveDash API")
 
@@ -30,6 +35,21 @@ async def aqi(lat: float = 7.2096, lon: float = 79.8378):
 @app.get("/api/news")
 async def news(category: str = "all"):
     return await fetch_all_news(category)
+
+@app.get("/api/briefing")
+async def briefing():
+    news_data = await fetch_all_news("all")
+    all_articles = []
+    # news_data is a dict like {"world": {...}, "science": {...}}
+    for cat_data in news_data.values():
+        articles = cat_data.get("articles", [])
+        all_articles.extend(articles)
+    
+    if not all_articles:
+        return {"summary": "No news articles found to summarize."}
+        
+    summary = await summarize_news(all_articles)
+    return {"summary": summary}
 
 @app.get("/api/geocode")
 async def geocode(q: str):
