@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LiveDash</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0c0e16;
+  --bg2:       #13151f;
+  --bg3:       #1b1e2e;
+  --bg4:       #232740;
+  --text:      #e2e6ff;
+  --muted:     #6b7299;
+  --dim:       #3d4363;
+  --accent:    #6c7aff;
+  --accentlt:  #8e9bff;
+  --green:     #3dd68c;
+  --blue:      #38b8f2;
+  --amber:     #f5a623;
+  --red:       #f45b5b;
+  --purple:    #a78bfa;
+  --teal:      #2dd4bf;
+  --r: 12px;
+  --rb: 8px;
+}
+
+body { background: var(--bg); color: var(--text); font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.5; min-height: 100vh; }
+
+a { color: var(--accentlt); text-decoration: none; }
+a:hover { color: #fff; }
+
+/* ── scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+/* ── header ── */
+#hdr {
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 24px; height: 56px;
+  background: var(--bg2); border-bottom: 1px solid rgba(255,255,255,.05);
+  position: sticky; top: 0; z-index: 50;
+}
+.logo { font-size: 15px; font-weight: 600; color: var(--accentlt); letter-spacing: .03em; display: flex; align-items: center; gap: 8px; }
+.logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+#location-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg3); border: 1px solid rgba(255,255,255,.07);
+  border-radius: 20px; padding: 4px 12px; font-size: 12px; color: var(--muted);
+  cursor: pointer; transition: border-color .15s;
+}
+#location-badge:hover { border-color: var(--accent); color: var(--text); }
+#location-badge .pin { font-size: 14px; }
+.hdr-spacer { flex: 1; }
+#clock { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.btn-refresh {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg3); border: 1px solid rgba(255,255,255,.08);
+  color: var(--text); padding: 6px 14px; border-radius: var(--rb);
+  font-size: 13px; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.btn-refresh:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-refresh svg { transition: transform .4s; }
+.btn-refresh.spin svg { transform: rotate(360deg); }
+
+/* ── location modal ── */
+#loc-modal-wrap {
+  display: none; position: absolute; top: 60px; left: 24px;
+  background: var(--bg2); border: 1px solid rgba(255,255,255,.1);
+  border-radius: var(--r); padding: 16px; z-index: 200; width: 320px;
+}
+#loc-modal-wrap.open { display: block; }
+.lm-title { font-size: 13px; font-weight: 500; margin-bottom: 12px; color: var(--text); }
+.lm-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.lm-row label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 3px; }
+.lm-row input {
+  width: 100%; background: var(--bg3); border: 1px solid rgba(255,255,255,.08);
+  color: var(--text); padding: 6px 10px; border-radius: var(--rb); font-size: 13px;
+}
+.lm-row input:focus { outline: 1px solid var(--accent); }
+.lm-actions { display: flex; gap: 8px; margin-top: 12px; }
+.lm-btn {
+  flex: 1; padding: 7px; border-radius: var(--rb); font-size: 13px;
+  cursor: pointer; border: 1px solid rgba(255,255,255,.08); transition: background .15s;
+}
+.lm-btn.pri { background: var(--accent); color: #fff; border-color: var(--accent); }
+.lm-btn.pri:hover { background: var(--accentlt); }
+.lm-btn.sec { background: var(--bg3); color: var(--text); }
+.lm-btn.sec:hover { background: var(--bg4); }
+.lm-btn.geo { background: var(--bg3); color: var(--green); border-color: rgba(61,214,140,.3); }
+.lm-btn.geo:hover { background: rgba(61,214,140,.1); }
+
+/* ── main layout ── */
+#main { padding: 20px 24px; max-width: 1440px; margin: 0 auto; }
+
+/* ── section label ── */
+.sec-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+}
+.sec-label::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.05); }
+
+/* ── cards ── */
+.card {
+  background: var(--bg2); border: 1px solid rgba(255,255,255,.06);
+  border-radius: var(--r); padding: 16px;
+}
+.card-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+}
+.card-title .pip { width: 5px; height: 5px; border-radius: 50%; }
+
+/* ── top strip: weather hero + stats + sun ── */
+#strip-weather { display: grid; grid-template-columns: 280px 1fr auto; gap: 12px; margin-bottom: 12px; }
+
+.w-hero { display: flex; flex-direction: column; justify-content: space-between; }
+.w-icon-wrap { font-size: 48px; line-height: 1; margin-bottom: 4px; }
+.w-temp-big { font-size: 52px; font-weight: 300; line-height: 1; letter-spacing: -2px; }
+.w-sup { font-size: 22px; vertical-align: super; }
+.w-desc { font-size: 14px; color: var(--muted); margin-top: 4px; }
+.w-city { font-size: 16px; font-weight: 500; margin-bottom: 2px; }
+.w-coords { font-size: 11px; color: var(--dim); }
+
+.w-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.w-stat { background: var(--bg3); border-radius: var(--rb); padding: 10px 12px; }
+.ws-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.ws-val { font-size: 20px; font-weight: 500; margin-top: 2px; }
+.ws-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+.sun-card { min-width: 140px; display: flex; flex-direction: column; justify-content: space-between; }
+.sun-row { display: flex; flex-direction: column; gap: 4px; }
+.sun-item { display: flex; align-items: center; gap: 8px; }
+.sun-ic { font-size: 18px; }
+.sun-label { font-size: 10px; color: var(--muted); }
+.sun-time { font-size: 16px; font-weight: 500; }
+.uvi-bar-wrap { margin-top: 12px; }
+.uvi-label { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+.uvi-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.uvi-fill { height: 100%; border-radius: 3px; transition: width .5s; }
+.uvi-val { font-size: 13px; font-weight: 500; margin-top: 4px; }
+
+/* ── thunder alert ── */
+#thunder-alert {
+  display: none; margin-bottom: 12px;
+  background: rgba(245,166,35,.08); border: 1px solid rgba(245,166,35,.3);
+  border-radius: var(--rb); padding: 10px 14px;
+  color: var(--amber); font-size: 13px;
+  display: flex; align-items: center; gap: 8px;
+}
+#thunder-alert.hidden { display: none !important; }
+
+/* ── rain chart ── */
+#strip-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.chart-wrap { position: relative; height: 140px; }
+
+/* ── forecast ── */
+#forecast-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
+#forecast-row::-webkit-scrollbar { height: 3px; }
+.fc-card {
+  flex: 0 0 88px; background: var(--bg2); border: 1px solid rgba(255,255,255,.06);
+  border-radius: var(--r); padding: 10px 8px; text-align: center; transition: border-color .15s;
+}
+.fc-card:hover { border-color: var(--accent); }
+.fc-day { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.fc-icon { font-size: 24px; margin: 6px 0; }
+.fc-hi { font-size: 15px; font-weight: 500; }
+.fc-lo { font-size: 12px; color: var(--muted); }
+.fc-rain { font-size: 10px; color: var(--blue); margin-top: 4px; }
+.fc-today { border-color: var(--accent); background: rgba(108,122,255,.07); }
+
+/* ── news pills ── */
+.news-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.npill {
+  background: var(--bg3); border: 1px solid rgba(255,255,255,.07);
+  padding: 4px 12px; border-radius: 20px; font-size: 12px; color: var(--muted);
+  cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 5px;
+}
+.npill:hover { border-color: var(--accent); color: var(--text); }
+.npill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.npill .badge {
+  background: rgba(255,255,255,.15); color: #fff;
+  font-size: 10px; padding: 1px 5px; border-radius: 10px;
+}
+.npill:not(.active) .badge { background: var(--bg4); color: var(--muted); }
+
+/* ── news grid ── */
+#news-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.news-card { background: var(--bg2); border: 1px solid rgba(255,255,255,.06); border-radius: var(--r); padding: 14px; }
+.nc-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.nc-icon { font-size: 14px; }
+.nc-cat { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .1em; }
+.nc-count { margin-left: auto; font-size: 10px; color: var(--muted); }
+.ni { padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.ni:last-child { border: none; padding-bottom: 0; }
+.ni a { font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.4; display: block; margin-bottom: 2px; }
+.ni a:hover { color: var(--accentlt); }
+.ni-meta { font-size: 10px; color: var(--muted); }
+.ni-desc { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+/* ── extras row ── */
+#strip-extra { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+
+/* air quality */
+.aqi-big { font-size: 36px; font-weight: 300; margin-bottom: 4px; }
+.aqi-label { font-size: 12px; font-weight: 500; }
+.aqi-bar-wrap { margin-top: 10px; display: flex; gap: 3px; }
+.aqi-seg { height: 4px; border-radius: 2px; flex: 1; }
+.aqi-active { height: 8px; margin-top: -2px; border-radius: 2px; }
+.aqi-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.aqi-m { background: var(--bg3); border-radius: var(--rb); padding: 7px 9px; }
+.aqi-ml { font-size: 9px; color: var(--muted); }
+.aqi-mv { font-size: 13px; font-weight: 500; }
+
+/* world clock */
+.clocks-list { display: flex; flex-direction: column; gap: 6px; }
+.clock-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.clock-row:last-child { border: none; }
+.ck-city { font-size: 12px; }
+.ck-offset { font-size: 10px; color: var(--muted); }
+.ck-time { font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* quick facts ticker */
+.ticker-list { display: flex; flex-direction: column; gap: 0; }
+.ticker-item { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.04); display: flex; align-items: flex-start; gap: 8px; }
+.ticker-item:last-child { border: none; }
+.ticker-bullet { width: 5px; height: 5px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.ticker-text { font-size: 12px; color: var(--text); line-height: 1.4; }
+.ticker-src { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* ── status bar ── */
+#statusbar {
+  font-size: 11px; color: var(--dim); text-align: right;
+  padding: 8px 24px 16px; display: flex; gap: 16px; justify-content: flex-end; align-items: center;
+}
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
+.status-dot.ok { background: var(--green); }
+.status-dot.err { background: var(--red); }
+
+/* loading shimmer */
+.shimmer { background: var(--bg3); border-radius: 4px; animation: sh 1.4s infinite; }
+@keyframes sh { 0%,100%{opacity:.4} 50%{opacity:.8} }
+
+/* util */
+.hidden { display: none !important; }
+@media (max-width: 900px) {
+  #strip-weather { grid-template-columns: 1fr; }
+  #strip-charts { grid-template-columns: 1fr; }
+  #strip-extra { grid-template-columns: 1fr; }
+  #main { padding: 12px; }
+  #hdr { padding: 0 12px; }
+}
+</style>
+</head>
+<body>
+
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">LiveDash — real-time weather, news and world information dashboard</h2>
+
+<!-- ── Header ── -->
+<div id="hdr">
+  <div class="logo"><div class="logo-dot"></div> LiveDash</div>
+  <div id="location-badge" onclick="toggleModal()">
+    <span class="pin">📍</span>
+    <span id="loc-name">Detecting location…</span>
+  </div>
+  <div class="hdr-spacer"></div>
+  <div id="clock"></div>
+  <button class="btn-refresh" onclick="loadAll()" id="refbtn">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+    Refresh
+  </button>
+</div>
+
+<!-- ── Location Modal ── -->
+<div id="loc-modal-wrap">
+  <div class="lm-title">Set location</div>
+  <div class="lm-row">
+    <div style="flex:2">
+      <label>City / place name</label>
+      <div style="display:flex;gap:4px">
+        <input id="inp-city" value="Negombo" onkeyup="if(event.key==='Enter')searchCity()" />
+        <button class="lm-btn pri" style="flex:0 0 70px" onclick="searchCity()">Search</button>
+      </div>
+      <div id="search-results" style="margin-top:8px;max-height:160px;overflow-y:auto;font-size:12px;display:none;background:var(--bg3);border-radius:var(--rb);border:1px solid var(--dim);z-index:210">
+      </div>
+    </div>
+  </div>
+  <div class="lm-row">
+    <div style="flex:1"><label>Latitude</label><input id="inp-lat" type="number" step="0.0001" value="7.2096" /></div>
+    <div style="flex:1"><label>Longitude</label><input id="inp-lon" type="number" step="0.0001" value="79.8378" /></div>
+  </div>
+  <div class="lm-actions">
+    <button class="lm-btn geo" onclick="geoLocate()">📍 Auto-detect</button>
+    <button class="lm-btn sec" onclick="toggleModal()">Cancel</button>
+    <button class="lm-btn pri" onclick="applyLocation()">Apply</button>
+  </div>
+</div>
+
+<!-- ── Main ── -->
+<div id="main">
+
+  <!-- Thunder alert -->
+  <div id="thunder-alert" class="hidden">
+    <span style="font-size:18px">⚡</span>
+    <span id="thunder-text">Thunderstorm conditions detected in your area. Stay indoors.</span>
+  </div>
+
+  <!-- ── Weather row ── -->
+  <div class="sec-label">Weather</div>
+  <div id="strip-weather">
+    <!-- Hero -->
+    <div class="card w-hero" id="w-hero">
+      <div><div class="shimmer" style="width:60px;height:60px;border-radius:50%;margin-bottom:12px"></div></div>
+      <div><div class="shimmer" style="width:120px;height:52px;margin-bottom:8px"></div></div>
+      <div><div class="shimmer" style="width:80px;height:14px"></div></div>
+    </div>
+    <!-- Stats -->
+    <div class="card" id="w-stats-card">
+      <div class="card-title"><div class="pip" style="background:var(--blue)"></div>Conditions</div>
+      <div class="w-stats" id="w-stats">
+        <div class="w-stat shimmer" style="height:60px"></div>
+        <div class="w-stat shimmer" style="height:60px"></div>
+        <div class="w-stat shimmer" style="height:60px"></div>
+        <div class="w-stat shimmer" style="height:60px"></div>
+      </div>
+    </div>
+    <!-- Sun/UVI -->
+    <div class="card sun-card" id="sun-card">
+      <div class="card-title"><div class="pip" style="background:var(--amber)"></div>Sun &amp; UV</div>
+      <div class="sun-row">
+        <div class="sun-item"><span class="sun-ic">🌅</span><div><div class="sun-label">Sunrise</div><div class="sun-time" id="sun-rise">—</div></div></div>
+        <div class="sun-item" style="margin-top:10px"><span class="sun-ic">🌇</span><div><div class="sun-label">Sunset</div><div class="sun-time" id="sun-set">—</div></div></div>
+      </div>
+      <div class="uvi-bar-wrap">
+        <div class="uvi-label">UV index</div>
+        <div class="uvi-bar"><div class="uvi-fill" id="uvi-fill" style="width:0%"></div></div>
+        <div class="uvi-val" id="uvi-val">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Charts ── -->
+  <div id="strip-charts">
+    <div class="card">
+      <div class="card-title"><div class="pip" style="background:var(--blue)"></div>Rain probability — next 24h</div>
+      <div class="chart-wrap"><canvas id="rainChart" role="img" aria-label="Hourly rain probability for next 24 hours">Rain probability chart</canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="pip" style="background:var(--amber)"></div>Temperature — next 24h</div>
+      <div class="chart-wrap"><canvas id="tempChart" role="img" aria-label="Hourly temperature for next 24 hours">Temperature chart</canvas></div>
+    </div>
+  </div>
+
+  <!-- ── Forecast ── -->
+  <div class="sec-label">7-day forecast</div>
+  <div id="forecast-row">
+    <div class="fc-card shimmer" style="height:110px"></div>
+    <div class="fc-card shimmer" style="height:110px"></div>
+    <div class="fc-card shimmer" style="height:110px"></div>
+    <div class="fc-card shimmer" style="height:110px"></div>
+    <div class="fc-card shimmer" style="height:110px"></div>
+    <div class="fc-card shimmer" style="height:110px"></div>
+    <div class="fc-card shimmer" style="height:110px"></div>
+  </div>
+
+  <!-- ── Extras ── -->
+  <div class="sec-label">Live data</div>
+  <div id="strip-extra">
+    <!-- Air quality -->
+    <div class="card" id="aqi-card">
+      <div class="card-title"><div class="pip" style="background:var(--green)"></div>Air quality</div>
+      <div id="aqi-content"><div class="shimmer" style="height:80px;border-radius:8px"></div></div>
+    </div>
+    <!-- World clock -->
+    <div class="card">
+      <div class="card-title"><div class="pip" style="background:var(--purple)"></div>World clocks</div>
+      <div class="clocks-list" id="clocks"></div>
+    </div>
+    <!-- Quick headlines ticker -->
+    <div class="card">
+      <div class="card-title"><div class="pip" style="background:var(--teal)"></div>Breaking now</div>
+      <div class="ticker-list" id="ticker"><div class="shimmer" style="height:120px;border-radius:8px"></div></div>
+    </div>
+  </div>
+
+  <!-- ── News ── -->
+  <div class="sec-label">News</div>
+  <div class="news-pills">
+    <div class="npill active" data-cat="all" onclick="filterNews('all',this)">All <span class="badge" id="badge-all">0</span></div>
+    <div class="npill" data-cat="world" onclick="filterNews('world',this)">🌍 World <span class="badge" id="badge-world">0</span></div>
+    <div class="npill" data-cat="regional" onclick="filterNews('regional',this)">📍 Regional <span class="badge" id="badge-regional">0</span></div>
+    <div class="npill" data-cat="conflict" onclick="filterNews('conflict',this)">⚔️ Conflict <span class="badge" id="badge-conflict">0</span></div>
+    <div class="npill" data-cat="science" onclick="filterNews('science',this)">🔬 Science <span class="badge" id="badge-science">0</span></div>
+    <div class="npill" data-cat="technology" onclick="filterNews('technology',this)">💻 Tech <span class="badge" id="badge-technology">0</span></div>
+  </div>
+  <div id="news-grid"><div class="card shimmer" style="height:200px"></div><div class="card shimmer" style="height:200px"></div></div>
+
+</div>
+
+<!-- ── Status bar ── -->
+<div id="statusbar">
+  <div class="status-dot" id="status-dot"></div>
+  <span id="status-text">Loading…</span>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let newsData = {}, rainInst = null, tempInst = null;
+let worldClockTimer = null;
+
+const ICONS = { sunny:'☀️', cloudy:'⛅', rain:'🌧️', snow:'❄️', fog:'🌫️', thunder:'⛈️' };
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const WORLD_ZONES = [
+  { city:'London',    tz:'Europe/London',          flag:'🇬🇧' },
+  { city:'New York',  tz:'America/New_York',        flag:'🇺🇸' },
+  { city:'Dubai',     tz:'Asia/Dubai',              flag:'🇦🇪' },
+  { city:'Singapore', tz:'Asia/Singapore',          flag:'🇸🇬' },
+  { city:'Tokyo',     tz:'Asia/Tokyo',              flag:'🇯🇵' },
+  { city:'Sydney',    tz:'Australia/Sydney',         flag:'🇦🇺' },
+];
+
+const CAT_META = {
+  world:      { label:'World',      icon:'🌍', color:'var(--accent)'  },
+  regional:   { label:'Regional',   icon:'📍', color:'var(--green)'   },
+  conflict:   { label:'Conflict',   icon:'⚔️', color:'var(--red)'     },
+  science:    { label:'Science',    icon:'🔬', color:'var(--blue)'    },
+  technology: { label:'Technology', icon:'💻', color:'var(--amber)'   },
+};
+
+/* ── Clock ── */
+function updateClock() {
+  const n = new Date();
+  document.getElementById('clock').textContent =
+    n.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' }) +
+    '  ·  ' +
+    n.toLocaleDateString([], { weekday:'short', day:'numeric', month:'short' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ── World clocks ── */
+function renderWorldClocks() {
+  const now = new Date();
+  document.getElementById('clocks').innerHTML = WORLD_ZONES.map(z => {
+    const t = now.toLocaleTimeString('en-GB', { timeZone: z.tz, hour:'2-digit', minute:'2-digit' });
+    return `<div class="clock-row">
+      <div><div class="ck-city">${z.flag} ${z.city}</div></div>
+      <div class="ck-time">${t}</div>
+    </div>`;
+  }).join('');
+}
+renderWorldClocks();
+setInterval(renderWorldClocks, 10000);
+
+/* ── Location modal ── */
+function toggleModal() {
+  document.getElementById('loc-modal-wrap').classList.toggle('open');
+  document.getElementById('search-results').style.display = 'none';
+}
+function applyLocation() {
+  toggleModal();
+  loadAll();
+}
+
+async function geoLocate() {
+  document.getElementById('loc-name').textContent = 'Detecting…';
+  
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const lat = pos.coords.latitude.toFixed(4);
+      const lon = pos.coords.longitude.toFixed(4);
+      updateLocationInputs(lat, lon);
+      try {
+        const r = await fetch(`${API}/api/reverse-geocode?lat=${lat}&lon=${lon}`);
+        const d = await r.json();
+        const city = d.city || 'Your location';
+        document.getElementById('inp-city').value = city;
+      } catch { document.getElementById('inp-city').value = 'My Location'; }
+      applyLocation();
+    }, async err => {
+      console.warn('Browser geolocation failed, trying IP fallback...', err);
+      await useIpLocation();
+    }, { enableHighAccuracy: false, timeout: 5000 });
+  } else {
+    await useIpLocation();
+  }
+}
+
+async function useIpLocation() {
+  try {
+    const r = await fetch(`${API}/api/detect-location`);
+    const d = await r.json();
+    if (d && d.lat) {
+      updateLocationInputs(d.lat, d.lon);
+      document.getElementById('inp-city').value = d.city || 'Detected Location';
+      applyLocation();
+    } else {
+      alert('Could not detect location automatically.');
+    }
+  } catch (e) {
+    alert('Location detection error.');
+  }
+}
+
+function updateLocationInputs(lat, lon) {
+  document.getElementById('inp-lat').value = lat;
+  document.getElementById('inp-lon').value = lon;
+}
+
+async function searchCity() {
+  const q = document.getElementById('inp-city').value;
+  if (!q) return;
+  const resDiv = document.getElementById('search-results');
+  resDiv.innerHTML = '<div style="padding:8px;color:var(--muted)">Searching…</div>';
+  resDiv.style.display = 'block';
+  
+  try {
+    const r = await fetch(`${API}/api/geocode?q=${encodeURIComponent(q)}`);
+    const results = await r.json();
+    if (!results || results.length === 0) {
+      resDiv.innerHTML = '<div style="padding:8px;color:var(--muted)">No results found.</div>';
+      return;
+    }
+    
+    resDiv.innerHTML = results.map(res => `
+      <div style="padding:10px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);transition:background 0.2s;" 
+           onmouseover="this.style.background='var(--bg4)'" 
+           onmouseout="this.style.background='transparent'"
+           onclick="selectCity(${res.latitude}, ${res.longitude}, '${res.name}, ${res.country}')">
+        <strong style="color:var(--text)">${res.name}</strong>, ${res.admin1 ? res.admin1 + ', ' : ''}${res.country}
+        <div style="font-size:10px;color:var(--muted)">Lat: ${res.latitude.toFixed(4)}, Lon: ${res.longitude.toFixed(4)}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    resDiv.innerHTML = '<div style="padding:8px;color:var(--red)">Search failed.</div>';
+  }
+}
+
+function selectCity(lat, lon, name) {
+  document.getElementById('inp-lat').value = lat.toFixed(4);
+  document.getElementById('inp-lon').value = lon.toFixed(4);
+  document.getElementById('inp-city').value = name;
+  document.getElementById('search-results').style.display = 'none';
+}
+
+function getCity() { return document.getElementById('inp-city').value || 'Negombo'; }
+function getLat()  { return parseFloat(document.getElementById('inp-lat').value)  || 7.2096; }
+function getLon()  { return parseFloat(document.getElementById('inp-lon').value)  || 79.8378; }
+
+/* ── Weather render ── */
+function renderWeather(d) {
+  document.getElementById('loc-name').textContent = `${d.city} · ${getLat().toFixed(2)}, ${getLon().toFixed(2)}`;
+
+  document.getElementById('w-hero').innerHTML = `
+    <div class="card-title"><div class="pip" style="background:var(--amber)"></div>Current</div>
+    <div>
+      <div class="w-icon-wrap">${ICONS[d.icon_type] || '🌡️'}</div>
+      <div class="w-temp-big">${Math.round(d.temperature)}<span class="w-sup">°C</span></div>
+      <div class="w-desc">${d.description}</div>
+    </div>
+    <div>
+      <div class="w-city">${d.city}</div>
+      <div class="w-coords">${getLat().toFixed(4)}°N, ${getLon().toFixed(4)}°E</div>
+    </div>`;
+
+  const rainColor  = d.rain_chance > 60 ? 'var(--blue)' : d.rain_chance > 30 ? 'var(--amber)' : 'var(--green)';
+  const windBft    = Math.round(d.wind_speed / 3.6);
+  document.getElementById('w-stats').innerHTML = `
+    <div class="w-stat">
+      <div class="ws-label">Feels like</div>
+      <div class="ws-val">${Math.round(d.feels_like)}°</div>
+      <div class="ws-sub">apparent temp</div>
+    </div>
+    <div class="w-stat">
+      <div class="ws-label">Humidity</div>
+      <div class="ws-val">${d.humidity}%</div>
+      <div class="ws-sub">relative</div>
+    </div>
+    <div class="w-stat">
+      <div class="ws-label">Wind</div>
+      <div class="ws-val">${Math.round(d.wind_speed)}</div>
+      <div class="ws-sub">km/h — ${windBft} Bft</div>
+    </div>
+    <div class="w-stat">
+      <div class="ws-label">Rain chance</div>
+      <div class="ws-val" style="color:${rainColor}">${d.rain_chance}%</div>
+      <div class="ws-sub">this hour</div>
+    </div>`;
+
+  const today = d.forecast[0];
+  const sr = today.sunrise.split('T')[1]?.slice(0,5) || '—';
+  const ss = today.sunset.split('T')[1]?.slice(0,5) || '—';
+  document.getElementById('sun-rise').textContent = sr;
+  document.getElementById('sun-set').textContent  = ss;
+  const uvi = d.uv_index ?? 0;
+  const uvPct = Math.min(100, Math.round(uvi / 12 * 100));
+  const uvColor = uvi <= 2 ? '#3dd68c' : uvi <= 5 ? '#f5a623' : uvi <= 7 ? '#f97316' : '#f45b5b';
+  document.getElementById('uvi-fill').style.width = uvPct + '%';
+  document.getElementById('uvi-fill').style.background = uvColor;
+  const uvLabel = uvi <= 2 ? 'Low' : uvi <= 5 ? 'Moderate' : uvi <= 7 ? 'High' : uvi <= 10 ? 'Very high' : 'Extreme';
+  document.getElementById('uvi-val').innerHTML = `<span style="color:${uvColor}">${uvi.toFixed(1)} — ${uvLabel}</span>`;
+
+  if (d.has_thunder) {
+    document.getElementById('thunder-alert').classList.remove('hidden');
+  } else {
+    document.getElementById('thunder-alert').classList.add('hidden');
+  }
+
+  /* forecast strip */
+  document.getElementById('forecast-row').innerHTML = d.forecast.map((f, i) => {
+    const dt = new Date(f.date);
+    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : DAYS[dt.getDay()];
+    return `<div class="fc-card${i === 0 ? ' fc-today' : ''}">
+      <div class="fc-day">${label}</div>
+      <div class="fc-icon">${ICONS[f.icon_type] || '🌡️'}</div>
+      <div class="fc-hi">${Math.round(f.max_temp)}°</div>
+      <div class="fc-lo">${Math.round(f.min_temp)}°</div>
+      <div class="fc-rain">${f.rain_chance}%</div>
+    </div>`;
+  }).join('');
+
+  /* rain chart */
+  const labels = d.hourly_times.map(t => t.split('T')[1]?.slice(0,5) || t);
+  if (rainInst) rainInst.destroy();
+  const rctx = document.getElementById('rainChart').getContext('2d');
+  rainInst = new Chart(rctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Rain %', data: d.hourly_rain,
+        borderColor: '#38b8f2', backgroundColor: 'rgba(56,184,242,.1)',
+        fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color:'#6b7299', maxTicksLimit:8, font:{ size:10 } }, grid:{ color:'rgba(255,255,255,.04)' }, border:{ display:false } },
+        y: { min:0, max:100, ticks:{ color:'#6b7299', font:{size:10}, callback: v=>v+'%' }, grid:{ color:'rgba(255,255,255,.04)' }, border:{ display:false } }
+      }
+    }
+  });
+
+  /* temp chart */
+  if (tempInst) tempInst.destroy();
+  const tctx = document.getElementById('tempChart').getContext('2d');
+  tempInst = new Chart(tctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '°C', data: d.hourly_temp,
+        borderColor: '#f5a623', backgroundColor: 'rgba(245,166,35,.08)',
+        fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color:'#6b7299', maxTicksLimit:8, font:{size:10} }, grid:{ color:'rgba(255,255,255,.04)' }, border:{ display:false } },
+        y: { ticks:{ color:'#6b7299', font:{size:10}, callback: v=>v+'°' }, grid:{ color:'rgba(255,255,255,.04)' }, border:{ display:false } }
+      }
+    }
+  });
+}
+
+/* ── Air quality render ── */
+function renderAQI(d) {
+  const aqi = d?.aqi ?? null;
+  if (!aqi) { document.getElementById('aqi-content').innerHTML = '<div style="color:var(--muted);font-size:12px">AQI data unavailable</div>'; return; }
+  const levels = [
+    { max:50,  label:'Good',       color:'#3dd68c' },
+    { max:100, label:'Moderate',   color:'#f5a623' },
+    { max:150, label:'Unhealthy*', color:'#f97316' },
+    { max:200, label:'Unhealthy',  color:'#f45b5b' },
+    { max:300, label:'Very bad',   color:'#a855f7' },
+    { max:500, label:'Hazardous',  color:'#7f1d1d' },
+  ];
+  const lvl = levels.find(l => aqi <= l.max) || levels[levels.length-1];
+  const segs = levels.map((l,i) => {
+    const active = aqi <= l.max && (i === 0 || aqi > levels[i-1].max);
+    return `<div class="aqi-seg${active ? ' aqi-active' : ''}" style="background:${l.color};opacity:${active?1:0.25}"></div>`;
+  }).join('');
+
+  document.getElementById('aqi-content').innerHTML = `
+    <div class="aqi-big" style="color:${lvl.color}">${aqi}</div>
+    <div class="aqi-label" style="color:${lvl.color}">${lvl.label}</div>
+    <div class="aqi-bar-wrap" style="align-items:flex-end">${segs}</div>
+    <div class="aqi-metrics">
+      <div class="aqi-m"><div class="aqi-ml">PM2.5</div><div class="aqi-mv">${d.pm25 ?? '—'}</div></div>
+      <div class="aqi-m"><div class="aqi-ml">PM10</div><div class="aqi-mv">${d.pm10 ?? '—'}</div></div>
+      <div class="aqi-m"><div class="aqi-ml">O₃</div><div class="aqi-mv">${d.o3 ?? '—'}</div></div>
+      <div class="aqi-m"><div class="aqi-ml">NO₂</div><div class="aqi-mv">${d.no2 ?? '—'}</div></div>
+    </div>`;
+}
+
+/* ── News ── */
+function renderNews(cat) {
+  const entries = cat === 'all' ? Object.entries(newsData) : [[cat, newsData[cat]]];
+  const valid = entries.filter(([,v]) => v?.articles?.length);
+  if (!valid.length) {
+    document.getElementById('news-grid').innerHTML = `<div class="card" style="color:var(--muted);font-size:13px">No articles loaded. Check backend.</div>`;
+    return;
+  }
+  document.getElementById('news-grid').innerHTML = valid.map(([c, data]) => {
+    const m = CAT_META[c] || { label:c, icon:'📰', color:'var(--accent)' };
+    return `<div class="news-card">
+      <div class="nc-head">
+        <span class="nc-icon">${m.icon}</span>
+        <span class="nc-cat" style="color:${m.color}">${m.label}</span>
+        <span class="nc-count">${data.count} articles</span>
+      </div>
+      ${data.articles.slice(0,6).map(a=>`
+        <div class="ni">
+          <a href="${a.url}" target="_blank" rel="noopener">${a.title}</a>
+          <div class="ni-meta">${a.source}${a.published ? ' · ' + new Date(a.published).toLocaleDateString() : ''}</div>
+          ${a.description ? `<div class="ni-desc">${a.description}</div>` : ''}
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function filterNews(cat, el) {
+  document.querySelectorAll('.npill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  renderNews(cat);
+}
+
+function updateBadges() {
+  let total = 0;
+  for (const [cat, data] of Object.entries(newsData)) {
+    const n = data?.count || 0;
+    const el = document.getElementById(`badge-${cat}`);
+    if (el) el.textContent = n;
+    total += n;
+  }
+  const allEl = document.getElementById('badge-all');
+  if (allEl) allEl.textContent = total;
+}
+
+/* ── Ticker (top world/science headlines) ── */
+function renderTicker() {
+  const items = [];
+  for (const cat of ['world','science','conflict','technology']) {
+    const arts = newsData[cat]?.articles || [];
+    if (arts[0]) items.push({ ...arts[0], cat });
+    if (arts[1]) items.push({ ...arts[1], cat });
+  }
+  items.sort(() => Math.random() - 0.5);
+  const colors = { world:'var(--accent)', science:'var(--blue)', conflict:'var(--red)', technology:'var(--amber)' };
+  document.getElementById('ticker').innerHTML = items.slice(0,5).map(a=>`
+    <div class="ticker-item">
+      <div class="ticker-bullet" style="background:${colors[a.cat]||'var(--accent)'}"></div>
+      <div>
+        <div class="ticker-text"><a href="${a.url}" target="_blank">${a.title}</a></div>
+        <div class="ticker-src">${a.source}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ── Load all ── */
+async function loadAll() {
+  const btn = document.getElementById('refbtn');
+  btn.classList.add('spin');
+  setStatus('Refreshing…', false);
+  const t0 = Date.now();
+  try {
+    const lat = getLat(), lon = getLon(), city = encodeURIComponent(getCity());
+    const [wRes, nRes, aqiRes] = await Promise.all([
+      fetch(`${API}/api/weather?lat=${lat}&lon=${lon}&city=${city}`),
+      fetch(`${API}/api/news`),
+      fetch(`${API}/api/aqi?lat=${lat}&lon=${lon}`),
+    ]);
+    const wData = await wRes.json();
+    newsData = await nRes.json();
+    const aqiData = aqiRes.ok ? await aqiRes.json() : null;
+
+    renderWeather(wData);
+    renderAQI(aqiData);
+    updateBadges();
+    renderNews('all');
+    renderTicker();
+
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    setStatus(`Updated ${new Date().toLocaleTimeString()} · ${elapsed}s`, true);
+  } catch(e) {
+    setStatus(`Error: ${e.message}`, false, true);
+  }
+  setTimeout(()=>btn.classList.remove('spin'), 500);
+}
+
+function setStatus(msg, ok, err=false) {
+  document.getElementById('status-text').textContent = msg;
+  const dot = document.getElementById('status-dot');
+  dot.className = 'status-dot' + (ok ? ' ok' : err ? ' err' : '');
+}
+
+/* ── Init ── */
+loadAll();
+setInterval(loadAll, 600_000);
+</script>
+</body>
+</html>
